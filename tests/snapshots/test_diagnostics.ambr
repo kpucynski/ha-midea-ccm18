@@ -1,0 +1,25 @@
+# serializer version: 1
+# name: test_entry_diagnostics
+  dict({
+    '0': dict({
+      'aux_octet': 0,
+      'error_code': 0,
+      'fan_octet': 4,
+      'index': 0,
+      'mode_octet': 136,
+      'protection_code': 0,
+      'setpoint': 24,
+      'temperature': 26.5,
+    }),
+    '1': dict({
+      'aux_octet': 0,
+      'error_code': 0,
+      'fan_octet': 2,
+      'index': 1,
+      'mode_octet': 0,
+      'protection_code': 0,
+      'setpoint': 21,
+      'temperature': 24.5,
+    }),
+  })
+# ---

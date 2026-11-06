@@ -1,0 +1,34 @@
+{
+    "config": {
+        "abort": {
+            "already_configured": "Device is already configured"
+        },
+        "error": {
+            "cannot_connect": "Failed to connect",
+            "no_units": "The gateway is reachable but reports no online indoor units.",
+            "unknown": "Unexpected error"
+        },
+        "step": {
+            "user": {
+                "data": {
+                    "device_id": "Modbus device ID",
+                    "host": "Host",
+                    "port": "Port"
+                },
+                "data_description": {
+                    "device_id": "The Modbus slave address configured on the gateway.",
+                    "host": "The hostname or IP address of your CCM18 gateway.",
+                    "port": "The Modbus TCP port of the CCM18 gateway."
+                }
+            }
+        }
+    },
+    "exceptions": {
+        "command_failed": {
+            "message": "Sending the command to the CCM18 gateway failed."
+        },
+        "update_failed": {
+            "message": "Error communicating with {host}: {error}"
+        }
+    }
+}
