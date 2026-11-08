@@ -31,6 +31,25 @@ async def test_user_flow(hass: HomeAssistant, mock_ccm18: AsyncMock) -> None:
     mock_ccm18.close.assert_awaited()
 
 
+async def test_user_flow_device_id_from_number_box(
+    hass: HomeAssistant, mock_ccm18: AsyncMock
+) -> None:
+    """Test that the number box value is stored as an integer device ID."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": SOURCE_USER}
+    )
+    data_schema = result["data_schema"].schema
+    device_id_selector = data_schema[CONF_DEVICE_ID].validators[0]
+    assert device_id_selector.config["mode"] == "box"
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {**USER_INPUT, CONF_DEVICE_ID: 5.0}
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_DEVICE_ID] == 5
+    assert isinstance(result["data"][CONF_DEVICE_ID], int)
+
+
 @pytest.mark.parametrize(
     ("side_effect", "return_value", "error"),
     [

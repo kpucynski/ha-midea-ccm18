@@ -5,6 +5,11 @@ from typing import Any, override
 
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.const import CONF_HOST, CONF_PORT
+from homeassistant.helpers.selector import (
+    NumberSelector,
+    NumberSelectorConfig,
+    NumberSelectorMode,
+)
 import probatio
 
 from .api import CCM18, CCM18Error
@@ -23,7 +28,12 @@ STEP_USER_DATA_SCHEMA = probatio.Schema(
         probatio.Required(CONF_HOST): str,
         probatio.Optional(CONF_PORT, default=DEFAULT_PORT): probatio.Port(),
         probatio.Optional(CONF_DEVICE_ID, default=DEFAULT_DEVICE_ID): probatio.All(
-            probatio.Coerce(int), probatio.Range(min=1, max=247)
+            NumberSelector(
+                NumberSelectorConfig(
+                    min=1, max=247, step=1, mode=NumberSelectorMode.BOX
+                )
+            ),
+            probatio.Coerce(int),
         ),
     }
 )

@@ -2,6 +2,8 @@
 
 Home Assistant integration for the Midea **CCM18 / CCM-18A** Modbus BMS gateway (also sold as Sinclair CCM18). The gateway connects a Midea VRF system with up to 64 indoor units to Modbus TCP. This integration exposes every indoor unit as a climate entity.
 
+The integration was developed and tested with **Rotenso iMoto** units, which are rebranded Midea air conditioners, connected through a CCM18 gateway. Other Midea-based VRF/AC brands that use the CCM18 gateway should work the same way.
+
 This is different from the Midea **CCM15** controller, which is already supported in Home Assistant by the built-in [`ccm15`](https://www.home-assistant.io/integrations/ccm15) integration over HTTP. The CCM18 is controlled over Modbus TCP instead.
 
 ## Features
