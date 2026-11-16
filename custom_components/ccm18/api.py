@@ -61,12 +61,11 @@ COIL_HORIZONTAL_SWING = 0x01
 # Holding register offsets inside an indoor unit block (address = unit * 32 + offset).
 # Offset 0 of unit 0 switches the whole refrigerant system and must never be written.
 HR_MODE = 1
-HR_FAN = 2
-HR_SETPOINT = 3
 HR_AUX = 6
 
 MIN_SETPOINT = 16
 MAX_SETPOINT = 32
+DEFAULT_SETPOINT = 25
 
 
 class Mode(IntFlag):
@@ -91,6 +90,9 @@ class FanSpeed(IntFlag):
     MEDIUM = 0x02
     LOW = 0x04
     AUTO = 0x80
+
+
+FAN_SPEED_MASK = int(FanSpeed.HIGH | FanSpeed.MEDIUM | FanSpeed.LOW | FanSpeed.AUTO)
 
 
 class AuxFunction(IntFlag):
@@ -262,18 +264,18 @@ class CCM18:
             raise CCM18Error(f"Reading coils at {address} failed: {response}")
         return sum(1 << bit for bit, value in enumerate(response.bits[:8]) if value)
 
-    async def _write_register(self, address: int, value: int) -> None:
+    async def _write_registers(self, address: int, values: list[int]) -> None:
         # The gateway only supports function code 0x10 (write multiple registers).
         async with self._lock:
             await self._ensure_connected()
             try:
                 response = await self._client.write_registers(
-                    address, [value], device_id=self._device_id
+                    address, values, device_id=self._device_id
                 )
             except ModbusException as err:
-                raise CCM18Error(f"Writing register {address} failed") from err
+                raise CCM18Error(f"Writing registers at {address} failed") from err
             if response.isError():
-                raise CCM18Error(f"Writing register {address} failed: {response}")
+                raise CCM18Error(f"Writing registers at {address} failed: {response}")
 
     async def _read_gateway_block(self) -> list[int]:
         return await self._read_input_registers(0, IR_GATEWAY_BLOCK_SIZE)
@@ -365,29 +367,34 @@ class CCM18:
             outdoor_units=outdoor_units,
         )
 
-    async def async_set_mode(self, index: int, mode: Mode, power_on: bool) -> None:
-        """Set the operating mode and power state of an indoor unit."""
-        value = int(mode) | (POWER_ON if power_on else 0)
-        _LOGGER.debug("Unit %s: mode register <- %#04x", index, value)
-        await self._write_register(index * REGISTERS_PER_UNIT + HR_MODE, value)
+    async def async_set_control(
+        self, index: int, mode_octet: int, fan_octet: int, setpoint: int
+    ) -> None:
+        """Set mode, fan and setpoint of an indoor unit.
 
-    async def async_set_fan_speed(self, index: int, fan_speed: FanSpeed) -> None:
-        """Set the fan speed of an indoor unit."""
-        _LOGGER.debug("Unit %s: fan register <- %#04x", index, int(fan_speed))
-        await self._write_register(index * REGISTERS_PER_UNIT + HR_FAN, int(fan_speed))
-
-    async def async_set_setpoint(self, index: int, temperature: int) -> None:
-        """Set the target temperature of an indoor unit."""
-        if not MIN_SETPOINT <= temperature <= MAX_SETPOINT:
+        The gateway web UI always writes these three holding registers together.
+        Writing the fan register alone with auto (0x80) can clear the power bit,
+        so callers must pass the current mode and setpoint alongside any change.
+        """
+        if not MIN_SETPOINT <= setpoint <= MAX_SETPOINT:
             raise ValueError(
-                f"Setpoint {temperature} outside {MIN_SETPOINT}-{MAX_SETPOINT}"
+                f"Setpoint {setpoint} outside {MIN_SETPOINT}-{MAX_SETPOINT}"
             )
-        _LOGGER.debug("Unit %s: setpoint register <- %s", index, temperature)
-        await self._write_register(
-            index * REGISTERS_PER_UNIT + HR_SETPOINT, temperature
+        _LOGGER.debug(
+            "Unit %s: control <- mode=%#04x fan=%#04x setpoint=%s",
+            index,
+            mode_octet,
+            fan_octet,
+            setpoint,
+        )
+        await self._write_registers(
+            index * REGISTERS_PER_UNIT + HR_MODE,
+            [mode_octet, fan_octet, setpoint],
         )
 
     async def async_set_aux_functions(self, index: int, functions: AuxFunction) -> None:
         """Set the auxiliary functions (eco, electric heater, swing) of an indoor unit."""
         _LOGGER.debug("Unit %s: aux register <- %#04x", index, int(functions))
-        await self._write_register(index * REGISTERS_PER_UNIT + HR_AUX, int(functions))
+        await self._write_registers(
+            index * REGISTERS_PER_UNIT + HR_AUX, [int(functions)]
+        )

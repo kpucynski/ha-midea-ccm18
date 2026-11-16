@@ -121,20 +121,16 @@ async def test_get_status(client: tuple[CCM18, MagicMock]) -> None:
 
 
 async def test_writes_use_unit_offsets(client: tuple[CCM18, MagicMock]) -> None:
-    """Test that commands target the holding registers of the right unit."""
+    """Test that control writes target mode/fan/setpoint as one block."""
     api, modbus = client
 
-    await api.async_set_mode(2, Mode.HEAT, power_on=True)
-    await api.async_set_mode(2, Mode.HEAT, power_on=False)
-    await api.async_set_fan_speed(2, FanSpeed.HIGH)
-    await api.async_set_setpoint(2, 22)
+    await api.async_set_control(2, 0x84, FanSpeed.AUTO, 22)
+    await api.async_set_control(2, 0x04, FanSpeed.HIGH, 22)
     await api.async_set_aux_functions(2, AuxFunction.SWING)
 
     assert [call.args for call in modbus.write_registers.await_args_list] == [
-        (65, [0x84]),
-        (65, [0x04]),
-        (66, [0x01]),
-        (67, [22]),
+        (65, [0x84, 0x80, 22]),
+        (65, [0x04, 0x01, 22]),
         (70, [0x04]),
     ]
 
@@ -143,7 +139,7 @@ async def test_setpoint_out_of_range(client: tuple[CCM18, MagicMock]) -> None:
     """Test that invalid setpoints are rejected before writing."""
     api, modbus = client
     with pytest.raises(ValueError):
-        await api.async_set_setpoint(0, 40)
+        await api.async_set_control(0, 0x88, FanSpeed.LOW, 40)
     modbus.write_registers.assert_not_awaited()
 
 
@@ -154,4 +150,4 @@ async def test_error_response(client: tuple[CCM18, MagicMock]) -> None:
     error.isError.return_value = True
     modbus.write_registers.return_value = error
     with pytest.raises(CCM18Error):
-        await api.async_set_setpoint(0, 22)
+        await api.async_set_control(0, 0x88, FanSpeed.LOW, 22)

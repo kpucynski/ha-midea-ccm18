@@ -7,6 +7,7 @@ from homeassistant.components.climate import (
     ATTR_HVAC_MODE,
     ATTR_SWING_MODE,
     DOMAIN as CLIMATE_DOMAIN,
+    FAN_AUTO,
     FAN_HIGH,
     SERVICE_SET_FAN_MODE,
     SERVICE_SET_HVAC_MODE,
@@ -91,19 +92,19 @@ async def test_set_hvac_mode(
         {ATTR_ENTITY_ID: UNIT_0, ATTR_HVAC_MODE: HVACMode.HEAT},
         blocking=True,
     )
-    mock_ccm18.async_set_mode.assert_awaited_with(0, Mode.HEAT, True)
+    mock_ccm18.async_set_control.assert_awaited_with(0, 0x84, FanSpeed.LOW, 24)
     assert hass.states.get(UNIT_0).state == HVACMode.HEAT
 
     await hass.services.async_call(
         CLIMATE_DOMAIN, SERVICE_TURN_OFF, {ATTR_ENTITY_ID: UNIT_0}, blocking=True
     )
-    mock_ccm18.async_set_mode.assert_awaited_with(0, Mode.HEAT, False)
+    mock_ccm18.async_set_control.assert_awaited_with(0, Mode.HEAT, FanSpeed.LOW, 24)
     assert hass.states.get(UNIT_0).state == HVACMode.OFF
 
     await hass.services.async_call(
         CLIMATE_DOMAIN, SERVICE_TURN_ON, {ATTR_ENTITY_ID: UNIT_0}, blocking=True
     )
-    mock_ccm18.async_set_mode.assert_awaited_with(0, Mode.HEAT, True)
+    mock_ccm18.async_set_control.assert_awaited_with(0, 0x84, FanSpeed.LOW, 24)
 
 
 async def test_turn_on_unknown_mode_uses_auto(
@@ -113,7 +114,9 @@ async def test_turn_on_unknown_mode_uses_auto(
     await hass.services.async_call(
         CLIMATE_DOMAIN, SERVICE_TURN_ON, {ATTR_ENTITY_ID: UNIT_1}, blocking=True
     )
-    mock_ccm18.async_set_mode.assert_awaited_with(1, Mode.AUTO, True)
+    mock_ccm18.async_set_control.assert_awaited_with(
+        1, 0x80 | Mode.AUTO, FanSpeed.MEDIUM, 21
+    )
 
 
 async def test_set_temperature(
@@ -126,8 +129,18 @@ async def test_set_temperature(
         {ATTR_ENTITY_ID: UNIT_1, ATTR_TEMPERATURE: 22, ATTR_HVAC_MODE: HVACMode.COOL},
         blocking=True,
     )
-    mock_ccm18.async_set_mode.assert_awaited_with(1, Mode.COOL, True)
-    mock_ccm18.async_set_setpoint.assert_awaited_with(1, 22)
+    assert mock_ccm18.async_set_control.await_args_list[-2].args == (
+        1,
+        0x88,
+        FanSpeed.MEDIUM,
+        21,
+    )
+    assert mock_ccm18.async_set_control.await_args_list[-1].args == (
+        1,
+        0x88,
+        FanSpeed.MEDIUM,
+        22,
+    )
     assert hass.states.get(UNIT_1).attributes[ATTR_TEMPERATURE] == 22
 
 
@@ -141,7 +154,16 @@ async def test_set_fan_and_swing(
         {ATTR_ENTITY_ID: UNIT_0, ATTR_FAN_MODE: FAN_HIGH},
         blocking=True,
     )
-    mock_ccm18.async_set_fan_speed.assert_awaited_with(0, FanSpeed.HIGH)
+    mock_ccm18.async_set_control.assert_awaited_with(0, 0x88, FanSpeed.HIGH, 24)
+
+    await hass.services.async_call(
+        CLIMATE_DOMAIN,
+        SERVICE_SET_FAN_MODE,
+        {ATTR_ENTITY_ID: UNIT_0, ATTR_FAN_MODE: FAN_AUTO},
+        blocking=True,
+    )
+    # Fan auto must rewrite mode+setpoint so power-on is not cleared.
+    mock_ccm18.async_set_control.assert_awaited_with(0, 0x88, FanSpeed.AUTO, 24)
 
     await hass.services.async_call(
         CLIMATE_DOMAIN,
@@ -157,7 +179,7 @@ async def test_command_failure(
     hass: HomeAssistant, setup_integration: MockConfigEntry, mock_ccm18: AsyncMock
 ) -> None:
     """Test a failing command raises and leaves the state unchanged."""
-    mock_ccm18.async_set_setpoint.side_effect = CCM18Error("timeout")
+    mock_ccm18.async_set_control.side_effect = CCM18Error("timeout")
     with pytest.raises(HomeAssistantError):
         await hass.services.async_call(
             CLIMATE_DOMAIN,

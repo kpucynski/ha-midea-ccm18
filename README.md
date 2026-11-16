@@ -57,6 +57,7 @@ Go to **Settings → Devices & services → Add integration**, search for **Mide
 
 - Switched-off units do not report their mode. Turning a unit on restores the last mode Home Assistant saw, or auto if none was seen since startup.
 - The gateway takes a few seconds to report changes, so the entity is updated optimistically after a command.
+- Mode, fan and setpoint are always written together, matching the gateway web UI. Writing fan alone (especially auto) can turn the unit off.
 - Horizontal swing cannot be controlled; the gateway's own web UI has no control for it either.
 - Outdoor units only appear if the gateway reports them online. Some installations, depending on how the gateway is wired, report none.
 - The whole-system on/off register is not exposed.
