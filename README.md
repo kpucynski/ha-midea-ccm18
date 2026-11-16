@@ -6,6 +6,14 @@ The integration was developed and tested with **Rotenso iMoto** units, which are
 
 This is different from the Midea **CCM15** controller, which is already supported in Home Assistant by the built-in [`ccm15`](https://www.home-assistant.io/integrations/ccm15) integration over HTTP. The CCM18 is controlled over Modbus TCP instead.
 
+## Support
+
+If this integration helps you control your Midea / Rotenso system from Home Assistant, you can support further development and maintenance:
+
+[![Buy Me A Coffee](https://cdn.buymeacoffee.com/buttons/v2/slim-yellow.png)](https://buymeacoffee.com/kpucynski)
+
+Every coffee helps cover the time spent reverse-engineering the CCM18 Modbus protocol, fixing quirks, and keeping the integration up to date. Thank you!
+
 ## Features
 
 - Indoor units that are online on the gateway are discovered automatically.
@@ -65,14 +73,6 @@ Go to **Settings → Devices & services → Add integration**, search for **Mide
 ## Protocol
 
 Based on the [CCM18 Modbus mapping table](https://www.sinclair-solutions.com/files/user-manual-en/accessories/um-ccm18-modbus-mapping-table-en-v01.pdf). The gateway returns corrupted data when more than 8 coils are read in one request, so coils are read one octet at a time.
-
-## Support
-
-If this integration helps you control your Midea / Rotenso system from Home Assistant, you can support further development and maintenance:
-
-[![Buy Me A Coffee](https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png)](https://buymeacoffee.com/kpucynski)
-
-Every coffee helps cover the time spent reverse-engineering the CCM18 Modbus protocol, fixing quirks, and keeping the integration up to date. Thank you!
 
 ## Removal
 
