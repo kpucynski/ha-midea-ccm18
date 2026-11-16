@@ -10,7 +10,7 @@ This is different from the Midea **CCM15** controller, which is already supporte
 
 If this integration helps you control your Midea / Rotenso system from Home Assistant, you can support further development and maintenance:
 
-[![Buy Me A Coffee](https://cdn.buymeacoffee.com/buttons/v2/slim-yellow.png)](https://buymeacoffee.com/kpucynski)
+[![Buy Me A Coffee](https://buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://buymeacoffee.com/kpucynski)
 
 Every coffee helps cover the time spent reverse-engineering the CCM18 Modbus protocol, fixing quirks, and keeping the integration up to date. Thank you!
 
