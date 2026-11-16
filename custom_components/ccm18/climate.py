@@ -17,19 +17,18 @@ from homeassistant.const import (
     UnitOfTemperature,
 )
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .api import MAX_SETPOINT, MIN_SETPOINT, AuxFunction, CCM18IndoorUnit
 from .const import (
-    DOMAIN,
     FAN_MODE_TO_FAN_SPEED,
     FAN_SPEED_TO_FAN_MODE,
     HVAC_TO_MODE,
     MODE_TO_HVAC,
 )
 from .coordinator import CCM18ConfigEntry, CCM18Coordinator
+from .entity import indoor_device_info
 
 PARALLEL_UPDATES = 1
 
@@ -41,7 +40,9 @@ async def async_setup_entry(
 ) -> None:
     """Set up a climate entity for every online indoor unit."""
     coordinator = config_entry.runtime_data
-    async_add_entities(CCM18Climate(coordinator, index) for index in coordinator.data)
+    async_add_entities(
+        CCM18Climate(coordinator, index) for index in coordinator.data.indoor_units
+    )
 
 
 class CCM18Climate(CoordinatorEntity[CCM18Coordinator], ClimateEntity):
@@ -70,18 +71,12 @@ class CCM18Climate(CoordinatorEntity[CCM18Coordinator], ClimateEntity):
         super().__init__(coordinator)
         self._index = index
         self._attr_unique_id = f"{coordinator.host}.{index}"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, f"{coordinator.host}.{index}")},
-            name=f"Midea {index}",
-            manufacturer="Midea",
-            model="Indoor unit",
-            via_device_id=coordinator.gateway_device_id,
-        )
+        self._attr_device_info = indoor_device_info(coordinator, index)
 
     @property
     def unit(self) -> CCM18IndoorUnit | None:
         """Return the current state of the indoor unit."""
-        return self.coordinator.data.get(self._index)
+        return self.coordinator.data.indoor_units.get(self._index)
 
     @property
     @override
@@ -130,6 +125,7 @@ class CCM18Climate(CoordinatorEntity[CCM18Coordinator], ClimateEntity):
             "error_code": unit.error_code,
             "protection_code": unit.protection_code,
             "mode_locked": unit.is_mode_locked,
+            "horizontal_swing": unit.horizontal_swing,
         }
 
     @override

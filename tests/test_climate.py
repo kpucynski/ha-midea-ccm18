@@ -65,7 +65,7 @@ async def test_setup_retry_when_unreachable(
     hass: HomeAssistant, mock_ccm18: AsyncMock, mock_config_entry: MockConfigEntry
 ) -> None:
     """Test the entry is retried when the gateway is unreachable."""
-    mock_ccm18.async_get_units.side_effect = CCM18Error("timeout")
+    mock_ccm18.async_get_status.side_effect = CCM18Error("timeout")
     mock_config_entry.add_to_hass(hass)
     await hass.config_entries.async_setup(mock_config_entry.entry_id)
     assert mock_config_entry.state is ConfigEntryState.SETUP_RETRY

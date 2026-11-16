@@ -12,7 +12,4 @@ async def async_get_config_entry_diagnostics(
     hass: HomeAssistant, config_entry: CCM18ConfigEntry
 ) -> dict[str, Any]:
     """Return diagnostics for a config entry."""
-    return {
-        str(index): dataclasses.asdict(unit)
-        for index, unit in config_entry.runtime_data.data.items()
-    }
+    return dataclasses.asdict(config_entry.runtime_data.data)

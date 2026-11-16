@@ -14,20 +14,49 @@ MAX_INDOOR_UNITS = 64
 REGISTERS_PER_UNIT = 32
 COILS_PER_UNIT = 128
 
+MAX_OUTDOOR_UNITS = 4
+
 # Input register offsets inside an indoor unit block (address = unit * 32 + offset).
 IR_SETPOINT = 3
 IR_INDOOR_TEMP = 4
+IR_EVAPORATOR_TEMP = 5
+IR_EVAPORATOR_MID_TEMP = 6
+IR_CONDENSER_TEMP = 7
 IR_ERROR = 15
 IR_PROTECTION = 16
 IR_BLOCK_SIZE = 17
+
 # Gateway-wide input registers, located in the block of indoor unit 0.
+IR_SYSTEM_STATE = 0
+IR_OUTDOOR_ONLINE = 17
 IR_INDOOR_ONLINE = 18
-IR_INDOOR_ONLINE_COUNT = 4
+IR_OUTDOOR_ERROR = 22
+IR_OUTDOOR_RUNNING = 23
+IR_GATEWAY_BLOCK_SIZE = 32
+
+SYSTEM_RUNNING = 0x01
+SYSTEM_ERROR = 0x02
+SYSTEM_REMOTE = 0x04
+
+# Outdoor unit input registers (address = 2048 + unit * 32 + offset).
+IR_OUTDOOR_BASE = 2048
+IR_OUTDOOR_TEMP = 3
+IR_OUTDOOR_CONDENSER_OUTLET_TEMP = 4
+IR_OUTDOOR_CONDENSER_INLET_TEMP = 5
+IR_OUTDOOR_DISCHARGE_TEMPS = (6, 7, 8)
+IR_OUTDOOR_INDOOR_COUNT = 9
+IR_OUTDOOR_COMPRESSOR_CURRENTS = (10, 11, 12)
+IR_OUTDOOR_FREQUENCY = 13
+IR_OUTDOOR_EEV_OPENINGS = (14, 15)
+IR_OUTDOOR_CAPACITY = 16
+IR_OUTDOOR_BLOCK_SIZE = 17
 
 # Coil octets inside an indoor unit block (address = unit * 128 + octet * 8).
 COIL_OCTET_MODE = 0
 COIL_OCTET_FAN = 1
 COIL_OCTET_AUX = 3
+COIL_OCTET_AUX2 = 4
+COIL_HORIZONTAL_SWING = 0x01
 
 # Holding register offsets inside an indoor unit block (address = unit * 32 + offset).
 # Offset 0 of unit 0 switches the whole refrigerant system and must never be written.
@@ -95,6 +124,15 @@ class CCM18IndoorUnit:
     temperature: float | None
     error_code: int
     protection_code: int
+    aux2_octet: int = 0
+    evaporator_temperature: float | None = None
+    evaporator_mid_temperature: float | None = None
+    condenser_temperature: float | None = None
+
+    @property
+    def horizontal_swing(self) -> bool:
+        """Return True if horizontal swing is active."""
+        return bool(self.aux2_octet & COIL_HORIZONTAL_SWING)
 
     @property
     def is_on(self) -> bool:
@@ -128,6 +166,57 @@ class CCM18IndoorUnit:
             self.aux_octet
             & (AuxFunction.ECO | AuxFunction.ELECTRIC_HEATER | AuxFunction.SWING)
         )
+
+
+@dataclass
+class CCM18OutdoorUnit:
+    """State of a single outdoor unit."""
+
+    index: int
+    is_running: bool
+    has_error: bool
+    outdoor_temperature: float | None
+    condenser_outlet_temperature: float | None
+    condenser_inlet_temperature: float | None
+    discharge_temperatures: tuple[float | None, ...]
+    compressor_currents: tuple[int, ...]
+    compressor_frequency: int
+    eev_openings: tuple[int, ...]
+    indoor_unit_count: int
+    capacity_demand: int
+
+
+@dataclass
+class CCM18Status:
+    """State of the gateway and every online indoor and outdoor unit."""
+
+    system_state: int
+    indoor_units: dict[int, CCM18IndoorUnit]
+    outdoor_units: dict[int, CCM18OutdoorUnit]
+
+    @property
+    def is_running(self) -> bool:
+        """Return True if the refrigerant system is running."""
+        return bool(self.system_state & SYSTEM_RUNNING)
+
+    @property
+    def has_error(self) -> bool:
+        """Return True if the refrigerant system reports an error."""
+        return bool(self.system_state & SYSTEM_ERROR)
+
+    @property
+    def is_remote(self) -> bool:
+        """Return True if the system is in remote (not local) control."""
+        return bool(self.system_state & SYSTEM_REMOTE)
+
+
+def _bits(bitmaps: list[int]) -> list[int]:
+    return [
+        word * 16 + bit
+        for word, bitmap in enumerate(bitmaps)
+        for bit in range(16)
+        if bitmap >> bit & 1
+    ]
 
 
 class CCM18:
@@ -186,21 +275,12 @@ class CCM18:
             if response.isError():
                 raise CCM18Error(f"Writing register {address} failed: {response}")
 
-    async def _get_online_unit_indexes(self) -> list[int]:
-        bitmaps = await self._read_input_registers(
-            IR_INDOOR_ONLINE, IR_INDOOR_ONLINE_COUNT
-        )
-        return [
-            word * 16 + bit
-            for word, bitmap in enumerate(bitmaps)
-            for bit in range(16)
-            if bitmap >> bit & 1
-        ]
+    async def _read_gateway_block(self) -> list[int]:
+        return await self._read_input_registers(0, IR_GATEWAY_BLOCK_SIZE)
 
-    async def _get_unit(self, index: int) -> CCM18IndoorUnit:
-        registers = await self._read_input_registers(
-            index * REGISTERS_PER_UNIT, IR_BLOCK_SIZE
-        )
+    async def _get_indoor_unit(
+        self, index: int, registers: list[int]
+    ) -> CCM18IndoorUnit:
         coil_base = index * COILS_PER_UNIT
         setpoint = registers[IR_SETPOINT]
         return CCM18IndoorUnit(
@@ -208,26 +288,82 @@ class CCM18:
             mode_octet=await self._read_coil_octet(coil_base + COIL_OCTET_MODE * 8),
             fan_octet=await self._read_coil_octet(coil_base + COIL_OCTET_FAN * 8),
             aux_octet=await self._read_coil_octet(coil_base + COIL_OCTET_AUX * 8),
+            aux2_octet=await self._read_coil_octet(coil_base + COIL_OCTET_AUX2 * 8),
             setpoint=setpoint if MIN_SETPOINT <= setpoint <= MAX_SETPOINT else None,
             temperature=decode_temperature(registers[IR_INDOOR_TEMP]),
+            evaporator_temperature=decode_temperature(registers[IR_EVAPORATOR_TEMP]),
+            evaporator_mid_temperature=decode_temperature(
+                registers[IR_EVAPORATOR_MID_TEMP]
+            ),
+            condenser_temperature=decode_temperature(registers[IR_CONDENSER_TEMP]),
             error_code=registers[IR_ERROR],
             protection_code=registers[IR_PROTECTION],
+        )
+
+    async def _get_outdoor_unit(
+        self, index: int, running: int, error: int
+    ) -> CCM18OutdoorUnit:
+        registers = await self._read_input_registers(
+            IR_OUTDOOR_BASE + index * REGISTERS_PER_UNIT, IR_OUTDOOR_BLOCK_SIZE
+        )
+        return CCM18OutdoorUnit(
+            index=index,
+            is_running=bool(running >> index & 1),
+            has_error=bool(error >> index & 1),
+            outdoor_temperature=decode_temperature(registers[IR_OUTDOOR_TEMP]),
+            condenser_outlet_temperature=decode_temperature(
+                registers[IR_OUTDOOR_CONDENSER_OUTLET_TEMP]
+            ),
+            condenser_inlet_temperature=decode_temperature(
+                registers[IR_OUTDOOR_CONDENSER_INLET_TEMP]
+            ),
+            discharge_temperatures=tuple(
+                decode_temperature(registers[offset])
+                for offset in IR_OUTDOOR_DISCHARGE_TEMPS
+            ),
+            compressor_currents=tuple(
+                registers[offset] for offset in IR_OUTDOOR_COMPRESSOR_CURRENTS
+            ),
+            compressor_frequency=registers[IR_OUTDOOR_FREQUENCY],
+            eev_openings=tuple(registers[offset] for offset in IR_OUTDOOR_EEV_OPENINGS),
+            indoor_unit_count=registers[IR_OUTDOOR_INDOOR_COUNT],
+            capacity_demand=registers[IR_OUTDOOR_CAPACITY],
         )
 
     async def async_get_online_units(self) -> list[int]:
         """Return the indexes of indoor units reported online by the gateway."""
         async with self._lock:
             await self._ensure_connected()
-            return await self._get_online_unit_indexes()
+            gateway = await self._read_gateway_block()
+        return _bits(gateway[IR_INDOOR_ONLINE : IR_INDOOR_ONLINE + 4])
 
-    async def async_get_units(self) -> dict[int, CCM18IndoorUnit]:
-        """Return the state of every online indoor unit."""
+    async def async_get_status(self) -> CCM18Status:
+        """Return the state of the gateway and every online unit."""
         async with self._lock:
             await self._ensure_connected()
-            return {
-                index: await self._get_unit(index)
-                for index in await self._get_online_unit_indexes()
+            gateway = await self._read_gateway_block()
+            indoor_units = {}
+            for index in _bits(gateway[IR_INDOOR_ONLINE : IR_INDOOR_ONLINE + 4]):
+                registers = (
+                    gateway
+                    if index == 0
+                    else await self._read_input_registers(
+                        index * REGISTERS_PER_UNIT, IR_BLOCK_SIZE
+                    )
+                )
+                indoor_units[index] = await self._get_indoor_unit(index, registers)
+            outdoor_units = {
+                index: await self._get_outdoor_unit(
+                    index, gateway[IR_OUTDOOR_RUNNING], gateway[IR_OUTDOOR_ERROR]
+                )
+                for index in _bits([gateway[IR_OUTDOOR_ONLINE]])
+                if index < MAX_OUTDOOR_UNITS
             }
+        return CCM18Status(
+            system_state=gateway[IR_SYSTEM_STATE],
+            indoor_units=indoor_units,
+            outdoor_units=outdoor_units,
+        )
 
     async def async_set_mode(self, index: int, mode: Mode, power_on: bool) -> None:
         """Set the operating mode and power state of an indoor unit."""

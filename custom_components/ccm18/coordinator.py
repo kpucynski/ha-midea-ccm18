@@ -16,7 +16,7 @@ from .api import (
     POWER_ON,
     AuxFunction,
     CCM18Error,
-    CCM18IndoorUnit,
+    CCM18Status,
     FanSpeed,
     Mode,
 )
@@ -27,8 +27,8 @@ _LOGGER = logging.getLogger(__name__)
 type CCM18ConfigEntry = ConfigEntry[CCM18Coordinator]
 
 
-class CCM18Coordinator(DataUpdateCoordinator[dict[int, CCM18IndoorUnit]]):
-    """Poll all indoor units connected to a CCM18 gateway."""
+class CCM18Coordinator(DataUpdateCoordinator[CCM18Status]):
+    """Poll a CCM18 gateway and its indoor and outdoor units."""
 
     config_entry: CCM18ConfigEntry
 
@@ -52,19 +52,19 @@ class CCM18Coordinator(DataUpdateCoordinator[dict[int, CCM18IndoorUnit]]):
         self.gateway_device_id: str | None = None
 
     @override
-    async def _async_update_data(self) -> dict[int, CCM18IndoorUnit]:
+    async def _async_update_data(self) -> CCM18Status:
         try:
-            units = await self.api.async_get_units()
+            status = await self.api.async_get_status()
         except CCM18Error as err:
             raise UpdateFailed(
                 translation_domain=DOMAIN,
                 translation_key="update_failed",
                 translation_placeholders={"host": self.host, "error": str(err)},
             ) from err
-        for index, unit in units.items():
+        for index, unit in status.indoor_units.items():
             if (mode := unit.mode) is not None:
                 self._last_mode[index] = mode
-        return units
+        return status
 
     @override
     async def async_shutdown(self) -> None:
@@ -78,8 +78,9 @@ class CCM18Coordinator(DataUpdateCoordinator[dict[int, CCM18IndoorUnit]]):
 
     def _apply(self, index: int, **changes: int) -> None:
         # The gateway takes a while to report new values, so update optimistically.
-        if (unit := self.data.get(index)) is not None:
-            self.data[index] = dataclasses.replace(unit, **changes)
+        units = self.data.indoor_units
+        if (unit := units.get(index)) is not None:
+            units[index] = dataclasses.replace(unit, **changes)
             self.async_update_listeners()
 
     async def async_set_mode(self, index: int, mode: Mode, power_on: bool) -> None:

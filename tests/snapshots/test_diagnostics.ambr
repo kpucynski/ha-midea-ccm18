@@ -1,25 +1,63 @@
 # serializer version: 1
 # name: test_entry_diagnostics
   dict({
-    '0': dict({
-      'aux_octet': 0,
-      'error_code': 0,
-      'fan_octet': 4,
-      'index': 0,
-      'mode_octet': 136,
-      'protection_code': 0,
-      'setpoint': 24,
-      'temperature': 26.5,
+    'indoor_units': dict({
+      '0': dict({
+        'aux2_octet': 1,
+        'aux_octet': 0,
+        'condenser_temperature': None,
+        'error_code': 0,
+        'evaporator_mid_temperature': 12.5,
+        'evaporator_temperature': 12.0,
+        'fan_octet': 4,
+        'index': 0,
+        'mode_octet': 136,
+        'protection_code': 0,
+        'setpoint': 24,
+        'temperature': 26.5,
+      }),
+      '1': dict({
+        'aux2_octet': 0,
+        'aux_octet': 0,
+        'condenser_temperature': None,
+        'error_code': 4,
+        'evaporator_mid_temperature': None,
+        'evaporator_temperature': None,
+        'fan_octet': 2,
+        'index': 1,
+        'mode_octet': 0,
+        'protection_code': 0,
+        'setpoint': 21,
+        'temperature': 24.5,
+      }),
     }),
-    '1': dict({
-      'aux_octet': 0,
-      'error_code': 0,
-      'fan_octet': 2,
-      'index': 1,
-      'mode_octet': 0,
-      'protection_code': 0,
-      'setpoint': 21,
-      'temperature': 24.5,
+    'outdoor_units': dict({
+      '0': dict({
+        'capacity_demand': 3,
+        'compressor_currents': list([
+          7,
+          0,
+          0,
+        ]),
+        'compressor_frequency': 54,
+        'condenser_inlet_temperature': None,
+        'condenser_outlet_temperature': 30.0,
+        'discharge_temperatures': list([
+          65.0,
+          None,
+          None,
+        ]),
+        'eev_openings': list([
+          60,
+          255,
+        ]),
+        'has_error': False,
+        'index': 0,
+        'indoor_unit_count': 2,
+        'is_running': True,
+        'outdoor_temperature': 8.5,
+      }),
     }),
+    'system_state': 1,
   })
 # ---

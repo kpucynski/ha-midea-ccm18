@@ -30,5 +30,60 @@
         "update_failed": {
             "message": "Error communicating with {host}: {error}"
         }
+    },
+    "entity": {
+        "sensor": {
+            "outdoor_temperature": {
+                "name": "Outdoor temperature"
+            },
+            "condenser_outlet_temperature": {
+                "name": "Condenser outlet temperature"
+            },
+            "condenser_inlet_temperature": {
+                "name": "Condenser inlet temperature"
+            },
+            "discharge_temperature_1": {
+                "name": "Compressor 1 discharge temperature"
+            },
+            "discharge_temperature_2": {
+                "name": "Compressor 2 discharge temperature"
+            },
+            "discharge_temperature_3": {
+                "name": "Compressor 3 discharge temperature"
+            },
+            "compressor_current_1": {
+                "name": "Compressor 1 current"
+            },
+            "compressor_current_2": {
+                "name": "Compressor 2 current"
+            },
+            "compressor_current_3": {
+                "name": "Compressor 3 current"
+            },
+            "compressor_frequency": {
+                "name": "Compressor frequency"
+            },
+            "capacity_demand": {
+                "name": "Capacity demand"
+            },
+            "eev_opening_1": {
+                "name": "Expansion valve 1 opening"
+            },
+            "eev_opening_2": {
+                "name": "Expansion valve 2 opening"
+            },
+            "indoor_unit_count": {
+                "name": "Indoor units"
+            },
+            "evaporator_temperature": {
+                "name": "Evaporator pipe temperature"
+            },
+            "evaporator_mid_temperature": {
+                "name": "Evaporator middle pipe temperature"
+            },
+            "indoor_condenser_temperature": {
+                "name": "Condenser pipe temperature"
+            }
+        }
     }
 }

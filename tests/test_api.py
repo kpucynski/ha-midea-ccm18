@@ -24,19 +24,31 @@ def _response(**kwargs) -> MagicMock:
 async def client() -> tuple[CCM18, MagicMock]:
     """Return a CCM18 client backed by a fake Modbus connection.
 
-    Register contents are a capture from a real gateway with units 0 and 1 online.
+    Indoor unit registers are a capture from a real gateway with units 0 and 1
+    online; the system state and outdoor unit 0 are synthetic.
     """
     api = CCM18("10.0.1.40")
     modbus = MagicMock(connected=True)
+    gateway = [0] * 32
+    gateway[:22] = [5, 16, 48, 25, 93, 93, 0, 54, 0, 0, 0, 0, 255, 0, 0, 0, 0, 1, 3]
+    gateway[23] = 0x01
     input_registers = {
-        0: [0, 16, 48, 25, 93, 93, 0, 54, 0, 0, 0, 0, 255, 0, 0, 0, 0, 0, 3, 0, 0, 0],
+        0: gateway,
         32: [0, 16, 48, 21, 89, 90, 0, 54, 0, 0, 0, 0, 255, 0, 0, 4, 0],
+        2048: [0, 0, 0, 57, 100, 255, 170, 255, 255, 2, 7, 0, 0, 54, 8, 255, 3],
     }
-    coil_octets = {0: 0x88, 8: 0x80, 24: 0x04, 128: 0x00, 136: 0x02, 152: 0x00}
+    coil_octets = {
+        0: 0x88,
+        8: 0x80,
+        24: 0x04,
+        32: 0x01,
+        128: 0x00,
+        136: 0x02,
+        152: 0x00,
+        160: 0x00,
+    }
 
     async def read_input_registers(address, *, count, device_id):
-        if address == 18:
-            return _response(registers=input_registers[0][18:22])
         return _response(registers=input_registers[address][:count])
 
     async def read_coils(address, *, count, device_id):
@@ -59,12 +71,42 @@ def test_decode_temperature() -> None:
     assert decode_temperature(255) is None
 
 
-async def test_get_units(client: tuple[CCM18, MagicMock]) -> None:
-    """Test reading the state of online units."""
+async def test_get_online_units(client: tuple[CCM18, MagicMock]) -> None:
+    """Test reading the online indoor unit bitmap."""
     api, _ = client
-    units = await api.async_get_units()
+    assert await api.async_get_online_units() == [0, 1]
 
+
+async def test_get_status(client: tuple[CCM18, MagicMock]) -> None:
+    """Test reading the state of the gateway and online units."""
+    api, _ = client
+    status = await api.async_get_status()
+
+    assert status.is_running
+    assert not status.has_error
+    assert status.is_remote
+
+    assert list(status.outdoor_units) == [0]
+    outdoor = status.outdoor_units[0]
+    assert outdoor.is_running
+    assert not outdoor.has_error
+    assert outdoor.outdoor_temperature == 8.5
+    assert outdoor.condenser_outlet_temperature == 30
+    assert outdoor.condenser_inlet_temperature is None
+    assert outdoor.discharge_temperatures == (65, None, None)
+    assert outdoor.indoor_unit_count == 2
+    assert outdoor.compressor_currents == (7, 0, 0)
+    assert outdoor.compressor_frequency == 54
+    assert outdoor.eev_openings == (8, 255)
+    assert outdoor.capacity_demand == 3
+
+    units = status.indoor_units
     assert list(units) == [0, 1]
+    assert units[0].horizontal_swing
+    assert not units[1].horizontal_swing
+    assert units[0].evaporator_temperature == 26.5
+    assert units[0].evaporator_mid_temperature == -20
+    assert units[0].condenser_temperature == 7
     assert units[0].is_on
     assert units[0].mode is Mode.COOL
     assert units[0].fan_speed is FanSpeed.AUTO

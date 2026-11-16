@@ -14,7 +14,10 @@ This is different from the Midea **CCM15** controller, which is already supporte
   - target temperature (16–32 °C) and current room temperature
   - fan speed: auto, low, medium, high
   - swing on/off
-  - error and protection codes as attributes
+  - horizontal swing state (read-only) and error and protection codes as attributes
+  - a problem binary sensor, and evaporator and condenser pipe temperatures (disabled by default)
+- One device per outdoor unit reported online by the gateway, with outdoor temperature, compressor discharge temperature, current and frequency, capacity demand, running and problem binary sensors, and further pipe temperatures and expansion valve openings (disabled by default).
+- Gateway running and problem diagnostic binary sensors.
 - Diagnostics download.
 
 The gateway is polled every 30 seconds.
@@ -54,7 +57,9 @@ Go to **Settings → Devices & services → Add integration**, search for **Mide
 
 - Switched-off units do not report their mode. Turning a unit on restores the last mode Home Assistant saw, or auto if none was seen since startup.
 - The gateway takes a few seconds to report changes, so the entity is updated optimistically after a command.
-- Outdoor units and the whole-system on/off register are not exposed.
+- Horizontal swing cannot be controlled; the gateway's own web UI has no control for it either.
+- Outdoor units only appear if the gateway reports them online. Some installations, depending on how the gateway is wired, report none.
+- The whole-system on/off register is not exposed.
 
 ## Protocol
 
